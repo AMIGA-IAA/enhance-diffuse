@@ -12,9 +12,6 @@ noise_detgrowquant=STRCOMPRESS(conf_page[3], /REMOVE_ALL)
 
 smo=STRCOMPRESS(conf_page[4], /REMOVE_ALL)
 
-
-
-
 ; I obtain a list of the input images
 spawn,'ls Inputs/ > list_imas.txt'
 
