@@ -1,0 +1,17 @@
+# Noisechisel parameters:
+
+  # tilesize
+  25
+
+  # qthresh
+  0.5
+
+  # interpnumngb
+  9
+
+  # detgrowquant
+  0.9
+
+# Smoothing:
+
+2
