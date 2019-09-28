@@ -4,13 +4,15 @@ pro Enhance_diffuse
 ;Reading the conf page
 READCOL,'Conf_page.dat',conf_page,/SILENT
 
-
 noise_tilesize=STRCOMPRESS(conf_page[0], /REMOVE_ALL)
 noise_qthresh=STRCOMPRESS(conf_page[1], /REMOVE_ALL)
 noise_interpnumngb=STRCOMPRESS(FIX(conf_page[2]), /REMOVE_ALL)
 noise_detgrowquant=STRCOMPRESS(conf_page[3], /REMOVE_ALL)
 
 smo=STRCOMPRESS(conf_page[4], /REMOVE_ALL)
+
+
+
 
 ; I obtain a list of the input images
 spawn,'ls Inputs/ > list_imas.txt'
@@ -23,17 +25,16 @@ N_imas=FIX(N_imas[1])
 ;Getting the size of the input images
 name=STRCOMPRESS(list_imas[0], /REMOVE_ALL)
 name='Inputs/'+name
-print,name
+
 ima_0 = READFITS(name,h_ima)
 tama=SIZE(ima_0)
 
-;Creating the masks and total image
+;Creating the final masks and total image
 mask_total=fltarr(tama[1],tama[2])
 Ima_total=fltarr(tama[1],tama[2])
 
 
 ;I create a loop for the masking of each input image
-
 for nn=0, N_imas-1 do begin
 
   name=STRCOMPRESS(list_imas[nn], /REMOVE_ALL)
@@ -41,6 +42,8 @@ for nn=0, N_imas-1 do begin
   print,name
   spawn,'cp '+name+' ima_temp.fits'
   ima=readfits('ima_temp.fits',h_ima)
+  
+  ; I add the image to total image
   Ima_total=Ima_total+ima
 
   ;Run noisechisel
@@ -56,6 +59,7 @@ for nn=0, N_imas-1 do begin
 
 endfor
 
+
 ;I mask the total image
 for ii=0,tama[1]-1 do begin
   for jj=0,tama[2]-1 do begin
@@ -66,6 +70,7 @@ endfor
 writefits,'Ima_total.fits',Ima_total,h_ima
 writefits,'Mask.fits',mask_total,h_mask
 
+; I rebin the total image
 spawn,'swarp Ima_total.fits -c Params/swarp.conf'
 Ima_rebin=readfits('coadd.fits',h_rebin)
 tama_rebin=SIZE(Ima_rebin)
@@ -80,8 +85,10 @@ endfor
 ;Gauss smoothing
 Ima_enhanced=GAUSS_SMOOTH(Ima_rebin,FIX(smo),/EDGE_TRUNCATE,/NAN)
 
+;Enhanced image
 writefits,'Enhanced.fits',Ima_enhanced,h_rebin
 
+;Removing crap
 spawn,'rm list_imas.txt'
 spawn,'rm ima_temp.fits'
 spawn,'rm test.cat'
