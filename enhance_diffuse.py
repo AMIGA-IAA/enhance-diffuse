@@ -20,17 +20,23 @@ def read_config(config_file, print_values=False):
     return config
 
 def find_image_names(input_location):
+    """ Gathers all fits files in the input folder
+    Input: string location to search for files
+    Output: list of files files in the input folder
+    """
     location = os.path.join(input_location, '*fits')
-    print(f'Looking for files in {location}')
-    files = glob.glob(location)
-    if len(files) > 0:
-        print('Files to process {}'.format(files))
+    print(f'Looking for files following: {location}')
+    fits_files = glob.glob(location)
+    if len(fits_files) > 0:
+        file_names = [os.path.basename(x) for x in fits_files]
+        print('Files to process {}'.format(file_names))
     else:
         print('Warning, no files found')
+    return fits_files
 
 def main():
     config = read_config(config_file, print_values=True)
-    find_image_names(input_location)
+    fits_files = find_image_names(input_location)
 
 if __name__=="__main__":
     main()
