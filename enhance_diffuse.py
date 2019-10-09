@@ -1,6 +1,8 @@
 import os
 import configparser
 import glob
+import numpy as np
+from astropy.io import fits
 
 config_file = './params.cfg'
 input_location = './Inputs'
@@ -32,11 +34,35 @@ def find_image_names(input_location):
         print('Files to process {}'.format(file_names))
     else:
         print('Warning, no files found')
-    return fits_files
+    num_images = len(fits_files)
+    print(f'Number of images {num_images}')
+    return np.atleast_1d(fits_files)
+
+def read_imsize(fits_files):
+    """
+    Read the size of the fits image
+    """
+    # First image as a reference
+    hdulist_0 = fits.open(fits_files[0])
+    data_shape_0 = hdulist_0[0].data.shape
+
+    for image in fits_files:
+        hdulist = fits.open(image)
+        data_shape = hdulist[0].data.shape
+        if data_shape != data_shape_0:
+            msg = f'WARNING! Image size mismatch'\
+                    f'First image size: {data_shape_0}' \
+                    f'Image {image} size: {data_shape}'
+            raise Exception(msg)
+    print(f'Image size: {data_shape_0}')
+    return data_shape_0
+
+
 
 def main():
     config = read_config(config_file, print_values=True)
     fits_files = find_image_names(input_location)
+    data_shape =  read_imsize(fits_files)
 
 if __name__=="__main__":
     main()
