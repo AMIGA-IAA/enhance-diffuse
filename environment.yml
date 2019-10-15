@@ -1,0 +1,12 @@
+name: enhance-diffuse
+channels:
+ - conda-forge
+ - bioconda
+ - defaults
+dependencies:
+ - python 3.7.*
+ - astropy 3.2.*
+ - numpy 1.17.*
+ - gnuastro 0.10.*
+ - astromatic-swarp 2.38.*
+ - astromatic-source-extractor 2.25.*
