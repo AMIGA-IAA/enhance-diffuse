@@ -1,0 +1,17 @@
+
+language: minimal
+dist: xenial
+
+# Reference:
+# https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/use-conda-with-travis-ci.html
+install:
+  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh 
+  - bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/conda-install
+  - source $HOME/conda-install/etc/profile.d/conda.sh
+  - conda update --all --yes
+  - conda info -a
+  - conda env create -f environment.yml 
+  - conda activate enhance-diffuse
+
+script:
+- python enhance_diffuse.py
