@@ -2,10 +2,30 @@ import os
 import configparser
 import glob
 import numpy as np
+import argparse
 from astropy.io import fits
 
-config_file = './params.cfg'
-input_location = './Inputs'
+def get_args():
+    """
+    Get additional arguments parsed using the command line
+    Returns args containing input_location and config_file
+    """
+    description = "Script to enhance the diffuse emission "\
+                   "of a set of optical images."
+    usage = "python enhance_diffuse.py"
+    epilog = "The script requires some gnuastro packages..."
+    parser = argparse.ArgumentParser(description=description,
+                                     usage=usage,
+                                     epilog=epilog)
+    parser.add_argument('-i','--input', dest='input_location',
+                        help='Location of folder containing the images. '\
+                             'Default is ./Inputs',
+                        default='./Inputs')
+    parser.add_argument('-c','--config', dest='config_file',
+                        help='Parameters file to use. Default is ./params.cfg',
+                        default='./params.cfg')
+    args = parser.parse_args()
+    return args
 
 def read_config(config_file, print_values=False):
     """
@@ -57,9 +77,10 @@ def read_imsize(fits_files):
     print(f'Image size: {data_shape_0}')
     return data_shape_0
 
-
-
 def main():
+    args = get_args()
+    input_location = args.input_location
+    config_file = args.config_file
     config = read_config(config_file, print_values=True)
     fits_files = find_image_names(input_location)
     data_shape =  read_imsize(fits_files)
