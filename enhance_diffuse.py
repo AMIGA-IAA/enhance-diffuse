@@ -1,9 +1,12 @@
 import os
+import tempfile
 import configparser
 import glob
 import numpy as np
 import argparse
 from astropy.io import fits
+
+SEXTRACTOR_CMD = 'sex'
 
 def get_args():
     """
@@ -77,6 +80,50 @@ def read_imsize(fits_files):
     print(f'Image size: {data_shape_0}')
     return data_shape_0
 
+
+def run_astnoisechisel(filename, config):
+    """
+    Run Gnuastro noisechisel and return the detection mask
+    """
+
+    with tempfile.NamedTemporaryFile() as fp:
+        command = 'astnoisechisel {} -h0 '\
+                     '--tilesize={},{} '\
+                     '--qthresh={} '\
+                     '--interpnumngb={} '\
+                     '--detgrowquant={} '\
+                     '--output={}.fits'.format(filename,
+                                               config['tilesize'], config['tilesize'],
+                                               config['qthresh'],
+                                               config['interpnumngb'],
+                                               config['detgrowquant'],
+                                               fp.name)
+        print('Executing:' + command)
+        os.system(command)
+        if fits.open(fp.name + '.fits')[2].name != 'DETECTIONS':
+            raise Exception('Wrong selection detections fits')
+        noisechisel_detection = fits.open(fp.name + '.fits')[2].data
+
+    return noisechisel_detection
+
+
+def run_sextractor_mask(filename, sexconf='Params/sex_point.conf'):
+    """
+    Run Sextractor and return the detection mask
+    """
+
+    with tempfile.NamedTemporaryFile() as fp:
+        command = f'{SEXTRACTOR_CMD} {filename} '\
+                  f'-c {sexconf} '\
+                  f'-CHECKIMAGE_NAME {fp.name}.fits'
+
+        print('Executing:' + command)
+        os.system(command)
+        sextractor_detection = fits.open(fp.name + '.fits')[0].data
+
+    return sextractor_detection
+
+
 def main():
     args = get_args()
     input_location = args.input_location
@@ -84,6 +131,8 @@ def main():
     config = read_config(config_file, print_values=True)
     fits_files = find_image_names(input_location)
     data_shape =  read_imsize(fits_files)
+    noisechisel_detection = run_astnoisechisel(fits_files[0], config)
+    sextractor_detection = run_sextractor_mask(fits_files[0])
 
 if __name__=="__main__":
     main()
