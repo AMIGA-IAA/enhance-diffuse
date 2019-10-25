@@ -22,8 +22,12 @@ def get_args():
                                      epilog=epilog)
     parser.add_argument('-i','--input', dest='input_location',
                         help='Location of folder containing the images. '\
-                             'Default is ./Inputs',
-                        default='./Inputs')
+                             'Default is ./Inputs/',
+                        default='./Inputs/')
+    parser.add_argument('-o','--outputs', dest='output_location',
+                        help='Location of folder containing the images. '\
+                             'Default is ./outputs/',
+                        default='./outputs/')
     parser.add_argument('-c','--config', dest='config_file',
                         help='Parameters file to use. Default is ./params.cfg',
                         default='./params.cfg')
@@ -123,16 +127,76 @@ def run_sextractor_mask(filename, sexconf='Params/sex_point.conf'):
 
     return sextractor_detection
 
+def create_master_mask(fits_files, config, data_shape):
+    """
+    Combines the masks produced by astnoischisel and sextractor for each image
+    into a master boolean mask with the detected sources
+    """
+    master_mask = np.zeros(data_shape).astype('bool')
+    for fits_file in fits_files:
+        noisechisel_detection = run_astnoisechisel(fits_file, config).astype('bool')
+        sextractor_detection = run_sextractor_mask(fits_file).astype('bool')
+        master_mask += noisechisel_detection
+        master_mask += sextractor_detection
+    return master_mask
+
+def create_stacked_image(fits_files, data_shape):
+    """
+    Combines all the images into a single array
+    """
+    stacked = np.zeros(data_shape)
+    for fits_file in fits_files:
+        hdulist = fits.open(fits_file)
+        data = hdulist[0].data
+        stacked += data
+    return stacked
+
+def mask_stacked_image(stacked_image, master_mask):
+    """
+    Filters an array with an inverted mask
+    """
+    stacked_image[master_mask] = np.nan
+    return stacked_image
+
+def write_fits(master_mask,stacked_masked, reference_header, output_location):
+    """
+    Function to convert to fits files the master mask and the stacked image
+    after being masked. It uses one image as a reference for the header 
+    information and saves the files in the output_location
+    """
+    out_mask = output_location+'/master_mask.fits'
+    out_image = output_location+'/stacked_masked.fits' 
+    if os.path.exists(out_mask):
+        os.remove(out_mask)
+    if os.path.exists(out_image):
+        os.remove(out_image)
+    hdulist = fits.open(reference_header)
+    hdulist[0].data = master_mask.astype(int)
+    hdulist.writeto(out_mask)
+    hdulist[0].data = stacked_masked
+    hdulist.writeto(out_image)
+
+
 
 def main():
+    # Read configuration
     args = get_args()
-    input_location = args.input_location
     config_file = args.config_file
     config = read_config(config_file, print_values=True)
+    input_location = args.input_location
+    output_location = args.output_location
+    if not os.path.exists(output_location):
+        os.mkdir(output_location)
+    # Find images
     fits_files = find_image_names(input_location)
     data_shape =  read_imsize(fits_files)
-    noisechisel_detection = run_astnoisechisel(fits_files[0], config)
-    sextractor_detection = run_sextractor_mask(fits_files[0])
+    # Create stacked images and masks
+    master_mask = create_master_mask(fits_files, config, data_shape=data_shape)
+    stacked_image = create_stacked_image(fits_files, data_shape=data_shape)
+    stacked_masked = mask_stacked_image(stacked_image, master_mask)
+    write_fits(master_mask,stacked_masked, reference_header=fits_files[0],
+               output_location=output_location)
+
 
 if __name__=="__main__":
     main()
