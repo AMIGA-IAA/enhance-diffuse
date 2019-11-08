@@ -5,6 +5,9 @@ import glob
 import numpy as np
 import argparse
 from astropy.io import fits
+from astropy.convolution import convolve
+from astropy.convolution import Gaussian2DKernel
+
 
 SEXTRACTOR_CMD = 'sex'
 
@@ -151,21 +154,21 @@ def create_stacked_image(fits_files, data_shape):
         stacked += data
     return stacked
 
-def mask_stacked_image(stacked_image, master_mask):
+def mask_image(image, mask):
     """
     Filters an array with an inverted mask
     """
-    stacked_image[master_mask] = np.nan
-    return stacked_image
+    image[mask] = np.nan
+    return image
 
 def write_fits(master_mask,stacked_masked, reference_header, output_location):
     """
     Function to convert to fits files the master mask and the stacked image
-    after being masked. It uses one image as a reference for the header 
+    after being masked. It uses one image as a reference for the header
     information and saves the files in the output_location
     """
     out_mask = output_location+'/master_mask.fits'
-    out_image = output_location+'/stacked_masked.fits' 
+    out_image = output_location+'/stacked_masked.fits'
     if os.path.exists(out_mask):
         os.remove(out_mask)
     if os.path.exists(out_image):
@@ -175,7 +178,35 @@ def write_fits(master_mask,stacked_masked, reference_header, output_location):
     hdulist.writeto(out_mask)
     hdulist[0].data = stacked_masked
     hdulist.writeto(out_image)
+    return out_mask, out_image
 
+def rebin_image(image, smoothing):
+    """
+    Run swarp and return the binned masked combined image
+    """
+
+    command = 'swarp {} -c Params/swarp.conf'.format(image)
+    print('Executing:' + command)
+    os.system(command)
+    # Note that swarp outputs coadds.fits
+
+    # Read swarp output image
+    hdulist = fits.open('coadd.fits')
+    header =  hdulist[0].header
+    data =  hdulist[0].data
+    # Fix data NaNs
+    data[data == 0.0] = np.nan
+
+    # Gaussian filter
+    print(type(smoothing))
+    kernel = Gaussian2DKernel(x_stddev=int(smoothing))
+    data_gauss_astropy = convolve(data, kernel= kernel)
+    outname = 'enhanced.fits'
+    if os.path.isfile(outname):
+        os.remove(outname)
+
+    fits.writeto(outname, data_gauss_astropy, header)
+    return
 
 
 def main():
@@ -193,9 +224,11 @@ def main():
     # Create stacked images and masks
     master_mask = create_master_mask(fits_files, config, data_shape=data_shape)
     stacked_image = create_stacked_image(fits_files, data_shape=data_shape)
-    stacked_masked = mask_stacked_image(stacked_image, master_mask)
-    write_fits(master_mask,stacked_masked, reference_header=fits_files[0],
-               output_location=output_location)
+    stacked_masked = mask_image(stacked_image, master_mask)
+    master_mask, staked_masked = write_fits(master_mask,stacked_masked,
+                                     reference_header=fits_files[0],
+                                     output_location=output_location)
+    rebin_image(staked_masked, smoothing=config['smoothing'])
 
 
 if __name__=="__main__":
