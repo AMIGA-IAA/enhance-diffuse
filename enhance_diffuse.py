@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 import configparser
 import glob
@@ -31,6 +32,8 @@ def get_args():
                         help='Location of folder containing the images. '\
                              'Default is ./outputs/',
                         default='./outputs/')
+    parser.add_argument('--keep_tmp', action='store_true',
+                        help='Do not delete temporary files. Default is False', default=False)
     parser.add_argument('-c','--config', dest='config_file',
                         help='Parameters file to use. Default is ./params.cfg',
                         default='./params.cfg')
@@ -87,29 +90,36 @@ def read_imsize(fits_files):
     print(f'Image size: {data_shape_0}')
     return data_shape_0
 
+def get_tempfile(filename, tmp_dir='./tmp_img', prefix=''):
+    """
+    Returns a file name to store temporary images.
+    """
+    tempfile = os.path.join(tmp_dir, prefix+'_'+os.path.basename(filename))
+    print('Producing temporary file: {}'.format(tempfile))
+    return tempfile
 
 def run_astnoisechisel(filename, config):
     """
     Run Gnuastro noisechisel and return the detection mask
     """
-
-    with tempfile.NamedTemporaryFile() as fp:
+    tempfile = get_tempfile(filename, prefix='noisechisel')
+    with open(tempfile, 'wb') as fp:
         command = 'astnoisechisel {} -h0 '\
                      '--tilesize={},{} '\
                      '--qthresh={} '\
                      '--interpnumngb={} '\
                      '--detgrowquant={} '\
-                     '--output={}.fits'.format(filename,
+                     '--output={}'.format(filename,
                                                config['tilesize'], config['tilesize'],
                                                config['qthresh'],
                                                config['interpnumngb'],
                                                config['detgrowquant'],
                                                fp.name)
-        print('Executing:' + command)
+        print('Executing: ' + command)
         os.system(command)
-        if fits.open(fp.name + '.fits')[2].name != 'DETECTIONS':
+        if fits.open(fp.name)[2].name != 'DETECTIONS':
             raise Exception('Wrong selection detections fits')
-        noisechisel_detection = fits.open(fp.name + '.fits')[2].data
+        noisechisel_detection = fits.open(fp.name)[2].data
 
     return noisechisel_detection
 
@@ -118,15 +128,15 @@ def run_sextractor_mask(filename, sexconf='Params/sex_point.conf'):
     """
     Run Sextractor and return the detection mask
     """
-
-    with tempfile.NamedTemporaryFile() as fp:
+    tempfile = get_tempfile(filename, prefix='sextractor')
+    with open(tempfile, 'wb') as fp:
         command = f'{SEXTRACTOR_CMD} {filename} '\
                   f'-c {sexconf} '\
-                  f'-CHECKIMAGE_NAME {fp.name}.fits'
+                  f'-CHECKIMAGE_NAME {fp.name}'
 
-        print('Executing:' + command)
+        print('Executing: ' + command)
         os.system(command)
-        sextractor_detection = fits.open(fp.name + '.fits')[0].data
+        sextractor_detection = fits.open(fp.name)[0].data
 
     return sextractor_detection
 
@@ -186,7 +196,7 @@ def rebin_image(image, smoothing):
     """
 
     command = 'swarp {} -c Params/swarp.conf'.format(image)
-    print('Executing:' + command)
+    print('Executing: ' + command)
     os.system(command)
     # Note that swarp outputs coadds.fits
 
@@ -216,6 +226,10 @@ def main():
     config = read_config(config_file, print_values=True)
     input_location = args.input_location
     output_location = args.output_location
+    tmp_dir = './tmp_img'
+    if os.path.exists(tmp_dir):
+        shutil.rmtree(tmp_dir)
+    os.mkdir(tmp_dir)
     if not os.path.exists(output_location):
         os.mkdir(output_location)
     # Find images
@@ -229,6 +243,11 @@ def main():
                                      reference_header=fits_files[0],
                                      output_location=output_location)
     rebin_image(staked_masked, smoothing=config['smoothing'])
+    # Remove temporary files if not needed:
+    if not args.keep_tmp:
+        print('Removing temporary files. To keep them use --keep_tmp')
+        shutil.rmtree(tmp_dir)
+    print('Output products in: {}'.format(output_location))
 
 
 if __name__=="__main__":
